@@ -1,2 +1,2 @@
-*.gz
-rebuild.sh
+/*.gz
+/rebuild.sh
