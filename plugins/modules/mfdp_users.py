@@ -104,10 +104,7 @@ RETURN = r'''
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-
-
-def get_users():
-    return ['win_user|domain1|client.company.com']
+from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_users_util import get_users
 
 
 def is_mfdp_installed():
@@ -129,7 +126,7 @@ def run_module(module):
     if not is_mfdp_installed():
         module.fail_json(msg='Data Protector installation not found', **result)
 
-    user_exists = (params['webusername'] in get_users())
+    user_exists = (params['webusername'] in get_users(module))
     module.log('Testt')
     #Удалить
     if params['state'] == 'absent' and user_exists:
