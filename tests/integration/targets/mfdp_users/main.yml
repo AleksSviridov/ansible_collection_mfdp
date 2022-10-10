@@ -1,0 +1,19 @@
+- hosts: 127.0.0.1
+  connection: local
+  collections:
+    - sviridov.dataprotector
+
+  tasks:
+  - name: 1 - User
+    mfdp_users:
+      name: win_user
+      dp_groups: admin
+      os_group: domain1
+      client: client.company.com
+      type: windows
+    register: test_one
+
+  - name: 1 - ASSERT
+    assert:
+      that:
+        - test_one is changed
