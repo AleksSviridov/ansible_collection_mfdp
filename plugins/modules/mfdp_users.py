@@ -6,7 +6,7 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-
+#TODO: Required one of name+osgroup+client or webusername
 DOCUMENTATION = r'''
 module: user
 version_added: "0.0.1"
@@ -83,6 +83,13 @@ EXAMPLES = r'''
     os_group: domain1
     client: client.company.com
     type: windows
+    
+- name: Remove the created user
+  mfdp_users:
+    name: win_user
+    os_group: domain1
+    client: client.company.com
+    state: absent
 '''
 
 RETURN = r'''
@@ -105,10 +112,7 @@ RETURN = r'''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_users_util import get_users
-
-
-def is_mfdp_installed():
-    return True
+from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common_util import is_mfdp_installed
 
 
 def run_module(module):
@@ -123,8 +127,8 @@ def run_module(module):
         webusername = params['webusername']
     )
 
-    if not is_mfdp_installed():
-        module.fail_json(msg='Data Protector installation not found', **result)
+    if not is_mfdp_installed(module):
+        module.fail_json(msg='Data Protector Cell Server not found', **result)
 
     user_exists = (params['webusername'] in get_users(module))
     module.log('Testt')

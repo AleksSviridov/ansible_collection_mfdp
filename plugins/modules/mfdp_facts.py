@@ -26,6 +26,8 @@ author:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_users_util import get_users
+from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common_util import is_mfdp_installed
+
 
 def run_module():
     argument_spec = {
@@ -42,16 +44,23 @@ def run_module():
         supports_check_mode=True
     )
 
+    if not is_mfdp_installed(module):
+        module.fail_json(msg='Data Protector Cell Server not found', **result)
+
     if 'all' in module.params['gather_subset']:
         gather_all = True
     else:
         gather_all = False
 
     if gather_all or 'users' in module.params['gather_subset']:
-        result['ansible_facts']['mfdp_users'] = get_users(module)
+        result['ansible_facts']['dataprotector_users'] = get_users(module)
 
     module.exit_json(**result)
 
 
 def main():
     run_module()
+
+
+if __name__ == '__main__':
+    main()
