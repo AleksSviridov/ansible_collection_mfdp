@@ -1,16 +1,18 @@
 from __future__ import absolute_import, division, print_function
+
 __metaclass__ = type
 
-from shlex import split
+from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common_util import execute_command
+
 
 def get_users(module):
     command = '/opt/omni/bin/omniusers -list'
-    rc, out, err = module.run_command(split(command))
+    rc, out, err = execute_command(module, command, obey_checkmode=False)
 
     if (rc != 0):
         module.fail_json(msg=f"Error executing {command}: {err}")
 
-    lines = [line.split(": ") for line in out.splitlines() if len(line.split(": "))==2]
+    lines = [line.split(": ") for line in out.splitlines() if len(line.split(": ")) == 2]
     users_dict = dict()
 
     for key, value in lines:
@@ -33,9 +35,9 @@ def get_users(module):
         if key == 'Descr':
             description = value
 
-            users_dict[webusername]=dict(
+            users_dict[webusername] = dict(
                 name=name,
-                dp_groups=dp_group,
+                dp_group=dp_group,
                 description=description,
                 os_group=os_group,
                 type=type,
@@ -43,3 +45,42 @@ def get_users(module):
             )
 
     return users_dict
+
+
+def create_user(module):
+    if module.params['type'] == 'windows':
+        os = 'W'
+    else:
+        os = 'U'
+
+    command = f'/opt/omni/bin/omniusers -add -type {os} \
+    -usergroup \"{module.params["dp_group"]}\" \
+    -name \"{module.params["name"]}\" \
+    -group \"{module.params["os_group"]}\" \
+    -client \"{module.params["client"]}\"'
+
+    if module.params['description']:
+        command += f' -desc \"{module.params["description"]}\"'
+    if module.params['password']:
+        command += f' -pass \"{module.params["password"]}\"'
+
+    if module.check_mode:
+        return False, command
+
+    rc, out, err = execute_command(module, command, obey_checkmode=False)
+
+    #user exists, changed = false
+    if 'already exists in Identity Server' in err:
+        return False, command
+
+    if rc != 0:
+        module.fail_json(msg=f"Error executing {command}: '{err}'")
+
+    return True, command
+
+
+def remove_user(module):
+    command = '/opt/omni/bin/omniusers -del'
+    if module.check_mode:
+        return command
+    rc, out, err = module.run_command(split(command))

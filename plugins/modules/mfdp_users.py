@@ -6,7 +6,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-#TODO: Required one of name+osgroup+client or webusername
 DOCUMENTATION = r'''
 module: user
 version_added: "0.0.1"
@@ -16,16 +15,22 @@ description:
 options:
     name:
         description:
-            - Name of the user to create, remove or modify.
+            - Name of the user to create, remove or modify. B(At least one of name and webusername are required.)
         type: str
-        required: true
+        required: false
         aliases: [ user ]
-    dp_groups:
+    webusername:
         description:
-            - List of groups Data Protector user groups user will be added to.
-        type: list
-        elements: str
-        required: true
+            - Web Username (name|group|client) of the user to create, remove or modify. 
+            - B(At least one of name and webusername are required.)
+        type: str
+        required: false
+    dp_group:
+        description:
+            - Required when creating an user C(state=present)
+            - Data Protector user group for user created.
+        type: str
+        required: false
     description:
         description:
             - Specifies the description for the added user.
@@ -78,17 +83,30 @@ EXAMPLES = r'''
 - name: Add a Windows user from the domain to the Data Protector admin user group and allow access only from the client 
   mfdp_users:
     name: win_user
-    dp_groups: 
-      - admin
+    dp_group: admin
     os_group: domain1
     client: client.company.com
     type: windows
+    description: "My test user"
+    
+- name: The same providing webusername only:
+  mfdp_users:
+    webusername: "win_user|domain1|client.company.com"
+    dp_group: admin
+    type: windows
+    description: "My test user"
+    password: OMNIomni11_
     
 - name: Remove the created user
   mfdp_users:
     name: win_user
     os_group: domain1
     client: client.company.com
+    state: absent
+    
+- name: Remove that user providing webusername only:
+  mfdp_users:
+    webusername: "win_user|domain1|client.company.com"
     state: absent
 '''
 
@@ -111,43 +129,32 @@ RETURN = r'''
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_users_util import get_users
+import ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_users_util as mfdp_users_util
 from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common_util import is_mfdp_installed
 
 
 def run_module(module):
-    params = module.params
-    params['webusername'] = f'{params["name"]}|{params["os_group"]}|{params["client"]}'.replace('|*','|\*')
+    if module.params['webusername']:
+        module.params['name'], module.params['os_group'], module.params['client'] = module.params['webusername'].split('|')
+    else:
+        module.params['webusername'] = f'{module.params["name"]}|{module.params["os_group"]}|{module.params["client"]}'.replace('|*','|\*')
     result = dict(
         changed=False,
-        original_message='',
-        message='',
-        user = params['name'],
-        state = params['state'],
-        webusername = params['webusername']
+        command='',
+        name=module.params['name'],
+        state=module.params['state'],
+        webusername=module.params['webusername']
     )
 
     if not is_mfdp_installed(module):
         module.fail_json(msg='Data Protector Cell Server not found', **result)
 
-    user_exists = (params['webusername'] in get_users(module))
-    module.log('Testt')
-    #Удалить
-    if params['state'] == 'absent' and user_exists:
-        if module.check_mode:
-            module.exit_json(**result)
-        result['changed'] = True
-    #Создать
-    if params['state'] == 'present' and not user_exists:
-        if module.check_mode:
-            module.exit_json(**result)
-        result['changed'] = True
-    #Уже удалено
-    if params['state'] == 'absent' and not user_exists:
-        result['changed'] = False
-    #Уже создано
-    if params['state'] == 'present' and user_exists:
-        result['changed'] = False
+    #Create
+    if module.params['state'] == 'present':
+        result['changed'], result['command'] = mfdp_users_util.create_user(module)
+    #Remove
+    if module.params['state'] == 'absent':
+        result['changed'], result['command'] = mfdp_users_util.remove_user(module)
 
     return result
 
@@ -156,15 +163,19 @@ def main():
 
     module = AnsibleModule(
         argument_spec=dict(
-            name=dict(type='str', required=True, aliases=['user']),
-            dp_groups=dict(type='list', elements='str', required=True),
+            name=dict(type='str', required=False, aliases=['user']),
+            webusername=dict(type='str', required=False),
+            dp_group=dict(type='str', required=False),
             description=dict(type='str'),
-            os_group=dict(type='str', required=True),
+            os_group=dict(type='str', required=False),
             type=dict(type='str', choices=['unix', 'windows'], default='unix'),
             state=dict(type='str', choices=['absent', 'present'], default='present'),
-            client=dict(type='str', required=True),
-            password=dict(type='str', required=False)
+            client=dict(type='str', required=False),
+            password=dict(type='str', required=False, no_log=True)
         ),
+        required_together=[('name', 'os_group', 'client')],
+        required_if=[('state', 'present', ['dp_group'])],
+        required_one_of=[['name', 'webusername']],
         supports_check_mode=True
     )
 
