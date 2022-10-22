@@ -80,7 +80,17 @@ def create_user(module):
 
 
 def remove_user(module):
-    command = '/opt/omni/bin/omniusers -del'
+    command = f'/opt/omni/bin/omniusers -remove -name \"{module.params["webusername"]}\"'
     if module.check_mode:
-        return command
-    rc, out, err = module.run_command(split(command))
+        return False, command
+
+    rc, out, err = execute_command(module, command, obey_checkmode=False)
+
+    #user not exists, changed = false
+    if 'does not exist in Identity Server' in err:
+        return False, command
+
+    if rc != 0:
+        module.fail_json(msg=f"Error executing {command}: '{err}'")
+
+    return True, command

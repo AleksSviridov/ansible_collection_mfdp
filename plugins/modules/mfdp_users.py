@@ -15,7 +15,9 @@ description:
 options:
     name:
         description:
-            - Name of the user to create, remove or modify. B(At least one of name and webusername are required.)
+            - Name of the user to create, remove or modify. 
+            - B(At least one of name and webusername are required.)
+            - B(If both are set, the webusername parameter will be used.)
         type: str
         required: false
         aliases: [ user ]
@@ -23,6 +25,7 @@ options:
         description:
             - Web Username (name|group|client) of the user to create, remove or modify. 
             - B(At least one of name and webusername are required.)
+            - B(If both are set, the webusername parameter will be used.)
         type: str
         required: false
     dp_group:
@@ -75,8 +78,11 @@ attributes:
         support: none
     platform:
         platforms: posix
+notes:
+  - User name\os group\client cannot be updated using this module because the update operation is not idempotent.
+  - If you want to update this parameters, you have to remove and than create it again.
 author:
-- Aleksandr Sviridov (@sviridov)
+  - Aleksandr Sviridov (@sviridov)
 '''
 
 EXAMPLES = r'''

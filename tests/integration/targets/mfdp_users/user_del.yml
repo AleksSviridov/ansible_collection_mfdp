@@ -4,22 +4,44 @@
   gather_facts: false
   collections: sviridov.dataprotector
 
+  vars:
+    test_user_1:
+      webusername: "win_user|domain1|client.company.com"
+      name: win_user
+      dp_group: admin
+      os_group: domain1
+      client: client.company.com
+      type: W
+      password: OMNIomni11_
+      description: "My test win user"
+    test_user_2:
+      webusername: "unix_user|unix_user_grp|server.company.com"
+      name: unix_user
+      dp_group: user
+      os_group: unix_user_grp
+      client: server.company.com
+      type: U
+
   tasks:
+
     - name: 0 - Gather user facts
       mfdp_facts:
         gather_subset: users
 
-    - name: 0 - Assert that root DP user is present
-      assert:
-        that: '"root|*|{{ ansible_host }}" in ansible_facts["dataprotector_users"].keys()'
+    - name: 0 - Add user win_user
+      ansible.builtin.command: '/opt/omni/bin/omniusers -add -type {{ test_user_1["type"] }} -usergroup {{ test_user_1["dp_group"] }} -name {{ test_user_1["name"] }} -group {{ test_user_1["os_group"] }} -client {{ test_user_1["client"] }}'
+      when: 'test_user_1["webusername"] not in ansible_facts["dataprotector_users"].keys()'
+
+    - name: 0 - Add user unix_user
+      ansible.builtin.command: '/opt/omni/bin/omniusers -add -type {{ test_user_2["type"] }} -usergroup {{ test_user_2["dp_group"] }} -name {{ test_user_2["name"] }} -group {{ test_user_2["os_group"] }} -client {{ test_user_2["client"] }}'
+      when: 'test_user_2["webusername"]  not in ansible_facts["dataprotector_users"].keys()'
 
     - name: 1.1 - Del user
       mfdp_users:
-        name: win_user
         state: absent
+        name: win_user
         os_group: domain1
         client: client.company.com
-        type: windows
       register: user_removed
 
     - name: 1.1 - Assert that module result is changed
@@ -28,12 +50,10 @@
 
     - name: 1.1 - Del user again
       mfdp_users:
-        name: win_user
         state: absent
+        name: win_user
         os_group: domain1
         client: client.company.com
-        type: windows
-        description: "My test user"
       register: user_removed
 
     - name: 1.1 - Assert that module result is not changed
@@ -43,7 +63,6 @@
     - name: 1.1 - Del user again (webusername)
       mfdp_users:
         webusername: "win_user|domain1|client.company.com"
-        type: windows
         state: absent
       register: user_removed
 
@@ -55,7 +74,6 @@
       mfdp_users:
         webusername: "unix_user|unix_user_grp|server.company.com"
         state: absent
-        type: unix
       register: user_removed
 
     - name: 1.2 - Assert that module result is changed
@@ -68,7 +86,6 @@
         state: absent
         os_group: unix_user_grp
         client: server.company.com
-        type: windows
       register: user_added
 
     - name: 1.2 - Assert that module result is not changed
