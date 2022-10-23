@@ -3,14 +3,14 @@ __metaclass__ = type
 
 from shlex import split
 
+
 def is_mfdp_installed(module):
     cell_info_path = '/etc/opt/omni/server/cell/cell_info'
     return module.sha1(cell_info_path)
 
+
 def execute_command(module, cmd, use_unsafe_shell=False, data=None, obey_checkmode=True):
     if module.check_mode and obey_checkmode:
-        module.debug('In check mode, would have run: "%s"' % cmd)
         return (0, '', '')
     else:
-        # cast all args to strings ansible-modules-core/issues/4397
         return module.run_command(split(cmd), use_unsafe_shell=use_unsafe_shell, data=data)

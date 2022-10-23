@@ -53,25 +53,38 @@ def create_user(module):
     else:
         os = 'U'
 
-    command = f'/opt/omni/bin/omniusers -add -type {os} \
+    users = get_users(module)
+
+    add_command = f'/opt/omni/bin/omniusers -add -type {os} \
     -usergroup \"{module.params["dp_group"]}\" \
     -name \"{module.params["name"]}\" \
     -group \"{module.params["os_group"]}\" \
     -client \"{module.params["client"]}\"'
+    update_command = ""
 
     if module.params['description']:
-        command += f' -desc \"{module.params["description"]}\"'
+        add_command += f' -desc \"{module.params["description"]}\"'
     if module.params['password']:
-        command += f' -pass \"{module.params["password"]}\"'
+        add_command += f' -pass \"{module.params["password"]}\"'
 
-    if module.check_mode:
-        return False, command
+    if module.params["webusername"] in users:
+        user = users[module.params["webusername"]]
+        if user["description"] != module.params["description"] and module.params["description"]:
+            update_command += f' -desc {module.params["description"]}'
+        if user["dp_group"] != module.params["dp_group"]:
+            update_command += f' -newusergroup {module.params["dp_group"]}'
+        if update_command:
+            update_command = f'omniusers -modify -usergroup {user["dp_group"]} -name {user["webusername"]}' + update_command
+        else:
+            # user already exists and up to date
+            return False, add_command
 
-    rc, out, err = execute_command(module, command, obey_checkmode=False)
+    if update_command:
+        command = update_command
+    else:
+        command = add_command
 
-    #user exists, changed = false
-    if 'already exists in Identity Server' in err:
-        return False, command
+    rc, out, err = execute_command(module, command, obey_checkmode=True)
 
     if rc != 0:
         module.fail_json(msg=f"Error executing {command}: '{err}'")
@@ -81,12 +94,10 @@ def create_user(module):
 
 def remove_user(module):
     command = f'/opt/omni/bin/omniusers -remove -name \"{module.params["webusername"]}\"'
-    if module.check_mode:
-        return False, command
 
-    rc, out, err = execute_command(module, command, obey_checkmode=False)
+    rc, out, err = execute_command(module, command, obey_checkmode=True)
 
-    #user not exists, changed = false
+    # user not exists, changed = false
     if 'does not exist in Identity Server' in err:
         return False, command
 

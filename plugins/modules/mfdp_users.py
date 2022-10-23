@@ -75,7 +75,7 @@ attributes:
     check_mode:
         support: full
     diff_mode:
-        support: none
+        support: full
     platform:
         platforms: posix
 notes:
@@ -161,6 +161,10 @@ def run_module(module):
     #Remove
     if module.params['state'] == 'absent':
         result['changed'], result['command'] = mfdp_users_util.remove_user(module)
+
+    # show diff only if execute_command called
+    if result['changed']:
+        result['diff'] = {"prepared": result['command']}
 
     return result
 
