@@ -45,12 +45,6 @@ options:
             - * corresponds to <Any> in the Data Protector GUI.
         type: str
         required: true
-    type:
-        description:
-            - Specifies the user type: a Unix user (unix) or a Windows user (windows).
-        type: str
-        choices: [ unix, windows ]
-        default: unix
     state:
         description:
             - Whether the account should exist or not, taking action if the state is different from what is stated.
@@ -81,25 +75,25 @@ attributes:
 notes:
   - User name\os group\client cannot be updated using this module because the update operation is not idempotent.
   - If you want to update this parameters, you have to remove and than create it again.
+  - User type (Unix\Windows) is not used by DP internally and is not stored. Hence, user type is always Unix. 
+  - User name, group, client are forced for lowercase
 author:
   - Aleksandr Sviridov (@sviridov)
 '''
 
 EXAMPLES = r'''
-- name: Add a Windows user from the domain to the Data Protector admin user group and allow access only from the client 
+- name: Add or update a user from the domain to the Data Protector admin user group and allow access only from the client
   mfdp_users:
     name: win_user
     dp_group: admin
     os_group: domain1
     client: client.company.com
-    type: windows
     description: "My test user"
     
 - name: The same providing webusername only:
   mfdp_users:
     webusername: "win_user|domain1|client.company.com"
     dp_group: admin
-    type: windows
     description: "My test user"
     password: OMNIomni11_
     
@@ -141,9 +135,16 @@ from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common
 
 def run_module(module):
     if module.params['webusername']:
+        module.params['webusername'] = module.params['webusername'].lower()
         module.params['name'], module.params['os_group'], module.params['client'] = module.params['webusername'].split('|')
     else:
-        module.params['webusername'] = f'{module.params["name"]}|{module.params["os_group"]}|{module.params["client"]}'.replace('|*','|\*')
+        module.params["name"] = module.params["name"].lower()
+        module.params["os_group"] = module.params["os_group"].lower()
+        module.params["client"] = module.params["client"].lower()
+        module.params['webusername'] = f'{module.params["name"]}|{module.params["os_group"]}|{module.params["client"]}'
+
+    # TODO: Check if Any (*) is allowed in the cell global config
+
     result = dict(
         changed=False,
         command='',
@@ -164,7 +165,7 @@ def run_module(module):
 
     # show diff only if execute_command called
     if result['changed']:
-        result['diff'] = {"prepared": result['command']}
+        result['diff'] = {"prepared": f'Command executed: {result["command"]}'}
 
     return result
 
@@ -178,7 +179,6 @@ def main():
             dp_group=dict(type='str', required=False),
             description=dict(type='str'),
             os_group=dict(type='str', required=False),
-            type=dict(type='str', choices=['unix', 'windows'], default='unix'),
             state=dict(type='str', choices=['absent', 'present'], default='present'),
             client=dict(type='str', required=False),
             password=dict(type='str', required=False, no_log=True)
@@ -188,6 +188,10 @@ def main():
         required_one_of=[['name', 'webusername']],
         supports_check_mode=True
     )
+
+    argument_validation_errors = mfdp_users_util.argument_validator(module)
+    if argument_validation_errors:
+        module.fail_json(msg=f"Incorrect arguments: {' '.join(argument_validation_errors)}'")
 
     results = run_module(module)
     module.exit_json(**results)

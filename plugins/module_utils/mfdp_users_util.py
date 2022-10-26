@@ -3,7 +3,14 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 from ansible_collections.sviridov.dataprotector.plugins.module_utils.mfdp_common_util import execute_command
+import re
 
+def argument_validator(module):
+    # TODO: Validate more module arguments
+    error_message = []
+    if module.params['client'] and not re.match(r'^\S+$', str(module.params['client'])):
+        error_message.append('Client name should contain no spaces')
+    return error_message
 
 def get_users(module):
     command = '/opt/omni/bin/omniusers -list'
@@ -24,10 +31,6 @@ def get_users(module):
             name = value
         if key == 'Group':
             os_group = value
-            if os_group.isupper():
-                type = 'windows'
-            else:
-                type = 'unix'
         if key == 'Client':
             client = value
         if key == 'Web Username':
@@ -40,7 +43,6 @@ def get_users(module):
                 dp_group=dp_group,
                 description=description,
                 os_group=os_group,
-                type=type,
                 client=client
             )
 
@@ -48,14 +50,10 @@ def get_users(module):
 
 
 def create_user(module):
-    if module.params['type'] == 'windows':
-        os = 'W'
-    else:
-        os = 'U'
 
     users = get_users(module)
 
-    add_command = f'/opt/omni/bin/omniusers -add -type {os} \
+    add_command = f'/opt/omni/bin/omniusers -add -type U \
     -usergroup \"{module.params["dp_group"]}\" \
     -name \"{module.params["name"]}\" \
     -group \"{module.params["os_group"]}\" \
@@ -69,12 +67,15 @@ def create_user(module):
 
     if module.params["webusername"] in users:
         user = users[module.params["webusername"]]
+
         if user["description"] != module.params["description"] and module.params["description"]:
-            update_command += f' -desc {module.params["description"]}'
+            update_command += f' -desc \"{module.params["description"]}\"'
         if user["dp_group"] != module.params["dp_group"]:
-            update_command += f' -newusergroup {module.params["dp_group"]}'
+            update_command += f' -newusergroup \"{module.params["dp_group"]}\"'
         if update_command:
-            update_command = f'omniusers -modify -usergroup {user["dp_group"]} -name {user["webusername"]}' + update_command
+            update_command = f'/opt/omni/bin/omniusers -modify \
+            -usergroup \"{user["dp_group"]}\" \
+            -name \"{module.params["webusername"]}\"' + update_command
         else:
             # user already exists and up to date
             return False, add_command
@@ -86,8 +87,8 @@ def create_user(module):
 
     rc, out, err = execute_command(module, command, obey_checkmode=True)
 
-    if rc != 0:
-        module.fail_json(msg=f"Error executing {command}: '{err}'")
+    if rc != 0 or 'ERROR' in out:
+        module.fail_json(msg=f"Error executing {command}: '{out} {err}'")
 
     return True, command
 
@@ -101,7 +102,7 @@ def remove_user(module):
     if 'does not exist in Identity Server' in err:
         return False, command
 
-    if rc != 0:
-        module.fail_json(msg=f"Error executing {command}: '{err}'")
+    if rc != 0 or 'ERROR' in out:
+        module.fail_json(msg=f"Error executing {command}: '{out} {err}'")
 
     return True, command
