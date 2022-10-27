@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 DOCUMENTATION = r'''
-module: user
+module: mfdp_user
 version_added: "0.0.1"
 short_description: Manage Data Protector user accounts
 description:
@@ -111,11 +111,6 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-    name:
-      description: User account basic name.
-      returned: always
-      type: str
-      sample: win_user
     webusername:
       description: User account full name.
       returned: always
@@ -148,8 +143,6 @@ def run_module(module):
     result = dict(
         changed=False,
         command='',
-        name=module.params['name'],
-        state=module.params['state'],
         webusername=module.params['webusername']
     )
 

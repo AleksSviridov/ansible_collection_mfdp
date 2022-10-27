@@ -1,0 +1,50 @@
+- hosts:
+  - mfdp.local
+  become: false
+  gather_facts: false
+  collections: sviridov.dataprotector
+
+  tasks:
+    - name: 1 - Set global options
+      mfdp_cell:
+        global_options:
+          EnableAnyOptionUserCtx: 0
+          LANfree: 1
+          IdbRestoreSessionTimeout: 30
+          BrowseHistoryStart: 7
+          MonBackupObj: "status type name source device size done errors warnings description"
+
+    - name: 1 - Gather global options
+      mfdp_facts:
+        gather_subset: global_options
+
+    - name: 1 - Assert that global options are set
+      assert:
+        that:
+          - 'ansible_facts["cell"]["global_options"]["EnableAnyOptionUserCtx"] == 1'
+          - 'ansible_facts["cell"]["global_options"]["LANfree"] == 1'
+          - 'ansible_facts["cell"]["global_options"]["IdbRestoreSessionTimeout"] == 30'
+          - 'ansible_facts["cell"]["global_options"]["BrowseHistoryStart"] == 7'
+          - 'ansible_facts["cell"]["global_options"]["MonBackupObj"] == "status type name source device size done errors warnings description"'
+
+    - name: 2 - Set global options again
+      mfdp_cell:
+        global_options:
+          EnableAnyOptionUserCtx: 1
+          LANfree: absent
+          IdbRestoreSessionTimeout: 15
+          BrowseHistoryStart: 3
+          MonBackupObj: "status type name source device size done errors description"
+
+    - name: 2 - Gather global options again
+      mfdp_facts:
+        gather_subset: global_options
+
+    - name: 2 - Assert that global options are set
+      assert:
+        that:
+          - 'ansible_facts["cell"]["global_options"]["EnableAnyOptionUserCtx"] == 1'
+          - '"LANfree" not in ansible_facts["cell"]["global_options"].keys()'
+          - 'ansible_facts["cell"]["global_options"]["IdbRestoreSessionTimeout"] == 15'
+          - 'ansible_facts["cell"]["global_options"]["BrowseHistoryStart"] == 3'
+          - 'ansible_facts["cell"]["global_options"]["MonBackupObj"] == "status type name source device size done errors description"'
